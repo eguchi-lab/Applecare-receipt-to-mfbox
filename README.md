@@ -47,6 +47,28 @@ MAX_THREADS=20
 
 最初は `SEND_TO_MF_BOX=false` のままテストしてください。
 
+## DRIVE_FOLDER_ID の確認方法
+
+`DRIVE_FOLDER_ID` は、PDFを保存するGoogle DriveフォルダのIDです。
+
+1. Google DriveでPDF保存先フォルダを作る。
+2. そのフォルダをブラウザで開く。
+3. アドレスバーのURLを確認する。
+
+URLは次のような形になります。
+
+```text
+https://drive.google.com/drive/folders/1AbCdEfGhIjKlMnOpQrStUvWxYz
+```
+
+この場合、`DRIVE_FOLDER_ID` に入れる値は最後のこの部分です。
+
+```text
+1AbCdEfGhIjKlMnOpQrStUvWxYz
+```
+
+フォルダURLに `?usp=sharing` などが付いている場合も、`/folders/` の後から `?` の手前までがフォルダIDです。
+
 ## テスト手順
 
 1. `previewAppleCareReceipts()` を実行する。
