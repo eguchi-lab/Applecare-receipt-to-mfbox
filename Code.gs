@@ -1,23 +1,50 @@
 /**
- * AppleCareのメール領収書をPDF化して、Money Forward クラウドBoxへ渡す補助スクリプト。
+ * メール領収書をPDF化して、Money Forward クラウドBoxへ渡す補助スクリプト。
  *
  * 通常の流れ:
- * - no_reply@email.apple.com から届いた未処理のApple領収書メールを探す。
- * - 本文に AppleCare / AppleCare+ が含まれるメールだけを対象にする。
- * - メール本文に証憑用メタ情報を付けてPDF化する。
+ * - 定義済みルールに合う未処理の領収書メールを探す。
+ * - ルールに応じて、メール本文をPDF化するか添付PDFを取り出す。
  * - PDFをGoogle Driveへ保存する。
  * - 設定が有効なら、Money Forward クラウドBoxへPDF添付メールを送る。
  * - 処理済みラベルを付けて二重送信を防ぐ。
  */
 
 const CONFIG = {
-  searchQuery:
-    'from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_than:7d -label:mf-box-sent -label:mf-box-skip',
   processedLabelName: 'mf-box-sent',
   skippedLabelName: 'mf-box-skip',
   errorLabelName: 'mf-box-error',
   defaultMaxThreads: 20,
-  appleCareKeywords: ['AppleCare', 'AppleCare+'],
+  receiptRules: [
+    {
+      name: 'Apple AppleCare',
+      searchQuery:
+        'from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_than:7d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'Apple_AppleCare',
+      amountCurrency: 'yen',
+      source: 'bodyPdf',
+      matches: function (message, plainBody) {
+        const from = message.getFrom();
+        const subject = message.getSubject();
+        const hasAppleCare = ['AppleCare', 'AppleCare+'].some((keyword) => plainBody.indexOf(keyword) !== -1);
+        return /no_reply@email\.apple\.com/i.test(from) && subject === 'Apple からの領収書です' && hasAppleCare;
+      },
+      skipReason: 'AppleCareキーワードが見つかりません',
+    },
+    {
+      name: 'Anthropic receipt',
+      searchQuery:
+        'from:invoice+statements@mail.anthropic.com subject:"Your receipt from Anthropic, PBC" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'Anthropic_Receipt',
+      amountCurrency: 'usd',
+      source: 'pdfAttachment',
+      matches: function (message) {
+        const from = message.getFrom();
+        const subject = message.getSubject();
+        return /invoice\+statements@mail\.anthropic\.com/i.test(from) && /^Your receipt from Anthropic, PBC/i.test(subject);
+      },
+      skipReason: 'Anthropic領収書ではありません',
+    },
+  ],
 };
 
 const PROPERTY_KEYS = {
@@ -53,7 +80,7 @@ function installDefaultProperties() {
 }
 
 /**
- * テストモード。対象メールをPDF化してDriveへ保存する。
+ * テストモード。対象メールのPDF証憑をDriveへ保存する。
  * Money Forward クラウドBoxへは送らず、処理済みラベルも付けない。
  */
 function previewAppleCareReceipts() {
@@ -61,7 +88,7 @@ function previewAppleCareReceipts() {
 }
 
 /**
- * 本番モード。対象メールをPDF化してDriveへ保存し、
+ * 本番モード。対象メールのPDF証憑をDriveへ保存し、
  * スクリプトプロパティの設定に従って添付メールを送り、処理済みラベルを付ける。
  */
 function processAppleCareReceipts() {
@@ -71,18 +98,20 @@ function processAppleCareReceipts() {
 function processAppleCareReceipts_(options) {
   const settings = getSettings_();
   const labels = ensureLabels_();
-  const threads = GmailApp.search(CONFIG.searchQuery, 0, settings.maxThreads);
   const results = [];
 
-  Logger.log('候補スレッド: %s 件。dryRun=%s', threads.length, options.dryRun);
+  CONFIG.receiptRules.forEach((rule) => {
+    const threads = GmailApp.search(rule.searchQuery, 0, settings.maxThreads);
+    Logger.log('[%s] 候補スレッド: %s 件。dryRun=%s', rule.name, threads.length, options.dryRun);
 
-  threads.forEach((thread) => {
-    const messages = thread.getMessages();
-    messages.forEach((message) => {
-      const result = processMessage_(message, thread, labels, settings, options);
-      if (result) {
-        results.push(result);
-      }
+    threads.forEach((thread) => {
+      const messages = thread.getMessages();
+      messages.forEach((message) => {
+        const result = processMessage_(message, thread, labels, settings, options, rule);
+        if (result) {
+          results.push(result);
+        }
+      });
     });
   });
 
@@ -90,51 +119,59 @@ function processAppleCareReceipts_(options) {
   return results;
 }
 
-function processMessage_(message, thread, labels, settings, options) {
+function processMessage_(message, thread, labels, settings, options, rule) {
   const subject = message.getSubject();
   const plainBody = message.getPlainBody();
 
-  // Appleの通常領収書には他の商品も混ざるので、AppleCare本文だけに絞る。
-  if (!isAppleCareReceipt_(message, plainBody)) {
-    Logger.log('AppleCare以外のメールとしてスキップ: %s', subject);
+  if (!rule.matches(message, plainBody)) {
+    Logger.log('[%s] 対象外としてスキップ: %s', rule.name, subject);
     if (!options.dryRun) {
       thread.addLabel(labels.skipped);
     }
     return {
       status: 'skipped',
+      rule: rule.name,
       subject,
-      reason: 'AppleCareキーワードが見つかりません',
+      reason: rule.skipReason,
       messageId: message.getId(),
     };
   }
 
   try {
     // PDFはDriveに必ず保存し、メール送信は設定で切り替える。
-    const fileName = buildFileName_(message, plainBody);
-    const pdf = buildPdf_(message, fileName);
-    const saveResult = savePdfToDrive_(pdf, settings.driveFolderId);
+    const pdfs = buildEvidencePdfs_(message, plainBody, rule);
+    const saveResults = pdfs.map((pdf) => savePdfToDrive_(pdf, settings.driveFolderId));
 
     if (!options.dryRun) {
-      sendPdf_(pdf, message, settings);
+      sendPdfs_(pdfs, message, settings);
       thread.addLabel(labels.processed);
       thread.removeLabel(labels.error);
     }
 
     const result = {
       status: options.dryRun ? 'preview' : 'processed',
-      fileName: pdf.getName(),
-      driveUrl: saveResult.file.getUrl(),
-      driveFileCreated: saveResult.created,
+      rule: rule.name,
+      fileName: pdfs[0].getName(),
+      driveUrl: saveResults[0].file.getUrl(),
+      driveFileCreated: saveResults[0].created,
+      files: saveResults.map((saveResult, index) => {
+        return {
+          fileName: pdfs[index].getName(),
+          driveUrl: saveResult.file.getUrl(),
+          driveFileCreated: saveResult.created,
+        };
+      }),
       subject,
       messageId: message.getId(),
     };
-    Logger.log('%s: %s created=%s', result.status, result.fileName, result.driveFileCreated);
+    Logger.log('%s: %s files=%s', result.status, rule.name, result.files.length);
     return result;
   } catch (error) {
     thread.addLabel(labels.error);
     Logger.log('ERROR: %s\n%s', error.message, error.stack);
     return {
       status: 'error',
+      rule: rule.name,
       subject,
       messageId: message.getId(),
       error: error.message,
@@ -183,20 +220,41 @@ function getOrCreateLabel_(name) {
   return GmailApp.getUserLabelByName(name) || GmailApp.createLabel(name);
 }
 
-function isAppleCareReceipt_(message, plainBody) {
-  const from = message.getFrom();
-  const subject = message.getSubject();
-  const isAppleSender = /no_reply@email\.apple\.com/i.test(from);
-  const isReceiptSubject = subject === 'Apple からの領収書です';
-  const hasAppleCare = CONFIG.appleCareKeywords.some((keyword) => plainBody.indexOf(keyword) !== -1);
-  return isAppleSender && isReceiptSubject && hasAppleCare;
+function buildEvidencePdfs_(message, plainBody, rule) {
+  if (rule.source === 'pdfAttachment') {
+    return buildAttachmentPdfs_(message, plainBody, rule);
+  }
+
+  const fileName = buildFileName_(message, plainBody, rule);
+  return [buildBodyPdf_(message, fileName)];
 }
 
-function buildPdf_(message, fileName) {
+function buildBodyPdf_(message, fileName) {
   const html = buildEvidenceHtml_(message);
   return Utilities.newBlob(html, 'text/html', fileName + '.html')
     .getAs(MimeType.PDF)
     .setName(fileName + '.pdf');
+}
+
+function buildAttachmentPdfs_(message, plainBody, rule) {
+  const attachments = message.getAttachments({
+    includeInlineImages: false,
+    includeAttachments: true,
+  });
+  const pdfAttachments = attachments.filter((attachment) => {
+    const contentType = String(attachment.getContentType() || '').toLowerCase();
+    const name = String(attachment.getName() || '');
+    return contentType.indexOf('pdf') !== -1 || /\.pdf$/i.test(name);
+  });
+
+  if (pdfAttachments.length === 0) {
+    throw new Error(rule.name + ' のPDF添付が見つかりません。');
+  }
+
+  return pdfAttachments.map((attachment, index) => {
+    const fileName = buildFileName_(message, plainBody, rule, index);
+    return attachment.copyBlob().setName(fileName + '.pdf');
+  });
 }
 
 function buildEvidenceHtml_(message) {
@@ -252,10 +310,10 @@ function savePdfToDrive_(pdf, driveFolderId) {
   };
 }
 
-function sendPdf_(pdf, message, settings) {
-  const subject = '[証憑] ' + pdf.getName();
+function sendPdfs_(pdfs, message, settings) {
+  const subject = '[証憑] ' + pdfs.map((pdf) => pdf.getName()).join(', ');
   const body =
-    'Gmailから生成したAppleCare領収書PDFです。\n\n' +
+    'Gmailから取得したメール領収書PDFです。\n\n' +
     '元メール件名: ' + message.getSubject() + '\n' +
     '元メール日時: ' +
     Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm:ss Z') +
@@ -267,7 +325,7 @@ function sendPdf_(pdf, message, settings) {
       to: settings.testEmail,
       subject: '[TEST] ' + subject,
       body,
-      attachments: [pdf.copyBlob()],
+      attachments: pdfs.map((pdf) => pdf.copyBlob()),
     });
   }
 
@@ -276,39 +334,42 @@ function sendPdf_(pdf, message, settings) {
       to: settings.mfBoxEmail,
       subject,
       body,
-      attachments: [pdf.copyBlob()],
+      attachments: pdfs.map((pdf) => pdf.copyBlob()),
     });
   }
 }
 
-function buildFileName_(message, plainBody) {
+function buildFileName_(message, plainBody, rule, index) {
   const dateTime = Utilities.formatDate(message.getDate(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmmss');
-  const amount = extractAmount_(plainBody);
-  const amountPart = amount ? '_' + amount + 'yen' : '';
+  const amount = extractAmount_(plainBody, rule.amountCurrency);
+  const amountPart = amount ? '_' + amount + rule.amountCurrency : '';
+  const indexPart = index ? '_' + (index + 1) : '';
   const messageIdPart = '_' + shortMessageId_(message.getId());
-  return sanitizeFileName_(dateTime + '_Apple_AppleCare' + amountPart + messageIdPart);
+  return sanitizeFileName_(dateTime + '_' + rule.fileNamePrefix + amountPart + indexPart + messageIdPart);
 }
 
 function shortMessageId_(messageId) {
   return String(messageId || '').replace(/[^a-zA-Z0-9]/g, '').slice(-10) || 'noMessageId';
 }
 
-function extractAmount_(plainBody) {
-  const matches = plainBody.match(/[¥￥]\s?([0-9,]+)/g);
+function extractAmount_(plainBody, currency) {
+  const pattern = currency === 'usd' ? /\$\s?([0-9,]+(?:\.[0-9]{2})?)/g : /[¥￥]\s?([0-9,]+)/g;
+  const matches = plainBody.match(pattern);
   if (!matches || matches.length === 0) {
     return '';
   }
 
-  // ファイル名用に、本文内の円金額のうち最大値を領収書金額の候補として使う。
+  // ファイル名用に、本文内の金額のうち最大値を領収書金額の候補として使う。
   const amounts = matches
-    .map((value) => Number(value.replace(/[^\d]/g, '')))
+    .map((value) => Number(value.replace(/[^\d.]/g, '')))
     .filter((value) => !isNaN(value) && value > 0);
 
   if (amounts.length === 0) {
     return '';
   }
 
-  return String(Math.max.apply(null, amounts));
+  const amount = Math.max.apply(null, amounts);
+  return currency === 'usd' ? String(amount).replace('.', '-') : String(amount);
 }
 
 function sanitizeFileName_(value) {

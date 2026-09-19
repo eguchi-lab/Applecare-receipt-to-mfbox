@@ -1,18 +1,30 @@
-# AppleCare Receipt to Money Forward Cloud Box
+# Mail Receipt to Money Forward Cloud Box
 
-AppleCare のメール領収書を Gmail から拾い、本文を PDF 化して、Google Drive に保存します。
+メール領収書を Gmail から拾い、本文PDFまたは添付PDFを Google Drive に保存します。
 設定を有効にすると Money Forward クラウドBoxのメール取込アドレスへ PDF 添付メールを送ります。
 
 ## 対象メール
 
-Gmail 検索条件:
+現在の対象ルール:
+
+### AppleCare
 
 ```text
 from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_than:7d -label:mf-box-sent -label:mf-box-skip
 ```
 
 さらに本文に `AppleCare` または `AppleCare+` が含まれるメールだけ処理します。
+AppleCare はメールにPDF添付がないため、メール本文をPDF化します。
 過去分をまとめて処理したい場合だけ、`newer_than:30d` や `newer_than:180d` に一時変更してください。
+
+### Anthropic
+
+```text
+from:invoice+statements@mail.anthropic.com subject:"Your receipt from Anthropic, PBC" newer_than:30d -label:mf-box-sent -label:mf-box-skip
+```
+
+件名が `Your receipt from Anthropic, PBC` で始まるメールを処理します。
+Anthropic はメールに添付されているPDFをそのまま保存・転送します。メール本文のPDF化はしません。
 
 ## PDFファイル名
 
@@ -22,6 +34,7 @@ from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_tha
 
 ```text
 2026-09-16_121530_Apple_AppleCare_9800yen_ab12cd34ef.pdf
+2026-09-19_175602_Anthropic_Receipt_110usd_ab12cd34ef.pdf
 ```
 
 Google Drive は同名ファイルを作成しても上書きしませんが、一覧上で区別しやすいように最初から一意に近い名前にしています。
@@ -113,6 +126,7 @@ mf-box-error
 
 ## 注意
 
-- Money Forward クラウドBoxのメール取込は添付ファイル保存用なので、このスクリプトはメール本文をPDF化して添付します。
-- Apple のメールHTMLが変わった場合、PDFの見た目や金額抽出が崩れる可能性があります。
+- Money Forward クラウドBoxのメール取込は添付ファイル保存用なので、このスクリプトはPDFを添付して送ります。
+- Apple のメールHTMLが変わった場合、本文PDF化の見た目や金額抽出が崩れる可能性があります。
+- Anthropic の添付ファイル形式やファイル数が変わった場合、PDF検出の調整が必要になる可能性があります。
 - 金額抽出はファイル名用です。仕訳金額の確定には Money Forward 側の明細とPDF本文を確認してください。
