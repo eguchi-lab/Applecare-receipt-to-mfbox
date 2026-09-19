@@ -35,6 +35,16 @@ from:googlestore-noreply@google.com subject:"Pixel Care+" newer_than:7d -label:m
 Google Store の Pixel Care+ 定期購入領収書を処理します。
 Pixel Care+ はメールにPDF添付がないため、メール本文をPDF化します。
 
+### PayPal Google Payments
+
+```text
+from:service-jp@paypal.com subject:"様への支払いを承認されました" newer_than:7d -label:mf-box-sent -label:mf-box-skip
+```
+
+PayPal から届く、グーグル・ペイメント合同会社への支払い承認メールを処理します。
+差出人が `service-jp@paypal.com` で、件名に `グーグル・ペイメント合同会社` と `様への支払いを承認されました` が含まれるメールだけ対象にします。
+PDF添付がある場合は添付PDFをそのまま保存・転送し、PDF添付がない場合はメール本文をPDF化します。
+
 ## PDFファイル名
 
 生成されるPDF名は、同じ日付・同じ金額でも区別できるように、メール日時とGmailメッセージIDの末尾を含めます。
@@ -44,6 +54,7 @@ Pixel Care+ はメールにPDF添付がないため、メール本文をPDF化�
 ```text
 2026-09-16_121530_Apple_AppleCare_9800yen_ab12cd34ef.pdf
 2026-09-19_175602_Anthropic_Receipt_110usd_ab12cd34ef.pdf
+2026-09-19_194625_PayPal_GooglePayments_880yen_ab12cd34ef.pdf
 ```
 
 Google Drive は同名ファイルを作成しても上書きしませんが、一覧上で区別しやすいように最初から一意に近い名前にしています。
@@ -138,4 +149,5 @@ mf-box-error
 - Money Forward クラウドBoxのメール取込は添付ファイル保存用なので、このスクリプトはPDFを添付して送ります。
 - Apple のメールHTMLが変わった場合、本文PDF化の見た目や金額抽出が崩れる可能性があります。
 - Anthropic の添付ファイル形式やファイル数が変わった場合、PDF検出の調整が必要になる可能性があります。
+- PayPal の件名や添付ファイル形式が変わった場合、対象条件やPDF検出の調整が必要になる可能性があります。
 - 金額抽出はファイル名用です。仕訳金額の確定には Money Forward 側の明細とPDF本文を確認してください。

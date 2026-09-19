@@ -61,6 +61,24 @@ const CONFIG = {
       },
       skipReason: 'Anthropic領収書ではありません',
     },
+    {
+      name: 'PayPal Google Payments receipt',
+      searchQuery:
+        'from:service-jp@paypal.com subject:"様への支払いを承認されました" newer_than:7d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'PayPal_GooglePayments',
+      amountCurrency: 'yen',
+      source: 'pdfAttachmentOrBody',
+      matches: function (message) {
+        const from = message.getFrom();
+        const subject = message.getSubject();
+        return (
+          /service-jp@paypal\.com/i.test(from) &&
+          subject.indexOf('グーグル・ペイメント合同会社') !== -1 &&
+          subject.indexOf('様への支払いを承認されました') !== -1
+        );
+      },
+      skipReason: 'PayPal Google Payments 支払い承認メールではありません',
+    },
   ],
 };
 
@@ -241,6 +259,12 @@ function buildEvidencePdfs_(message, plainBody, rule) {
   if (rule.source === 'pdfAttachment') {
     return buildAttachmentPdfs_(message, plainBody, rule);
   }
+  if (rule.source === 'pdfAttachmentOrBody') {
+    const attachmentPdfs = buildAttachmentPdfs_(message, plainBody, rule, { allowEmpty: true });
+    if (attachmentPdfs.length > 0) {
+      return attachmentPdfs;
+    }
+  }
 
   const fileName = buildFileName_(message, plainBody, rule);
   return [buildBodyPdf_(message, fileName)];
@@ -253,7 +277,8 @@ function buildBodyPdf_(message, fileName) {
     .setName(fileName + '.pdf');
 }
 
-function buildAttachmentPdfs_(message, plainBody, rule) {
+function buildAttachmentPdfs_(message, plainBody, rule, options) {
+  const allowEmpty = options && options.allowEmpty;
   const attachments = message.getAttachments({
     includeInlineImages: false,
     includeAttachments: true,
@@ -265,6 +290,9 @@ function buildAttachmentPdfs_(message, plainBody, rule) {
   });
 
   if (pdfAttachments.length === 0) {
+    if (allowEmpty) {
+      return [];
+    }
     throw new Error(rule.name + ' のPDF添付が見つかりません。');
   }
 
@@ -370,7 +398,7 @@ function shortMessageId_(messageId) {
 }
 
 function extractAmount_(plainBody, currency) {
-  const pattern = currency === 'usd' ? /\$\s?([0-9,]+(?:\.[0-9]{2})?)/g : /[¥￥]\s?([0-9,]+)/g;
+  const pattern = currency === 'usd' ? /\$\s?([0-9,]+(?:\.[0-9]{2})?)/g : /(?:[¥￥]\s?([0-9,]+)|([0-9,]+)\s?円)/g;
   const matches = plainBody.match(pattern);
   if (!matches || matches.length === 0) {
     return '';
