@@ -26,6 +26,15 @@ from:invoice+statements@mail.anthropic.com subject:"Your receipt from Anthropic,
 件名が `Your receipt from Anthropic, PBC` で始まるメールを処理します。
 Anthropic はメールに添付されているPDFをそのまま保存・転送します。メール本文のPDF化はしません。
 
+### Google Store Pixel Care+
+
+```text
+from:googlestore-noreply@google.com subject:"Pixel Care+" newer_than:7d -label:mf-box-sent -label:mf-box-skip
+```
+
+Google Store の Pixel Care+ 定期購入領収書を処理します。
+Pixel Care+ はメールにPDF添付がないため、メール本文をPDF化します。
+
 ## PDFファイル名
 
 生成されるPDF名は、同じ日付・同じ金額でも区別できるように、メール日時とGmailメッセージIDの末尾を含めます。

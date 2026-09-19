@@ -30,6 +30,23 @@ const CONFIG = {
       },
       skipReason: 'AppleCareキーワードが見つかりません',
     },
+    // Google Store の Pixel Care+ 定期購入領収書はPDF添付がないため、
+    // AppleCare と同じくメール本文を証憑PDFとして保存・転送する。
+    {
+      name: 'Google Store Pixel Care',
+      searchQuery:
+        'from:googlestore-noreply@google.com subject:"Pixel Care+" newer_than:7d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'GoogleStore_PixelCare',
+      amountCurrency: 'yen',
+      source: 'bodyPdf',
+      matches: function (message, plainBody) {
+        const from = message.getFrom();
+        const subject = message.getSubject();
+        const hasPixelCare = plainBody.indexOf('Pixel Care+') !== -1;
+        return /googlestore-noreply@google\.com/i.test(from) && subject.indexOf('Pixel Care+') !== -1 && hasPixelCare;
+      },
+      skipReason: 'Pixel Care+キーワードが見つかりません',
+    },
     {
       name: 'Anthropic receipt',
       searchQuery:
