@@ -52,8 +52,8 @@ const CONFIG = {
     {
       name: 'Google Workspace invoice',
       searchQuery:
-        'from:payments-noreply@google.com subject:"Google Workspace: eguchi-lab.jp の請求書の用意ができました" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
-      fileNamePrefix: 'GoogleWorkspace_eguchi-lab.jp_Invoice',
+        'from:payments-noreply@google.com subject:"Google Workspace:" subject:"の請求書の用意ができました" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'GoogleWorkspace_Invoice',
       amountCurrency: 'yen',
       source: 'pdfAttachment',
       matches: function (message) {
@@ -61,10 +61,10 @@ const CONFIG = {
         const subject = message.getSubject();
         return (
           /^(?:payments-noreply@google\.com|[^<>]*<payments-noreply@google\.com>)$/i.test(from) &&
-          subject === 'Google Workspace: eguchi-lab.jp の請求書の用意ができました'
+          /^Google Workspace:\s+\S+\s+の請求書の用意ができました$/.test(subject)
         );
       },
-      skipReason: 'eguchi-lab.jp のGoogle Workspace請求書ではありません',
+      skipReason: 'Google Workspace請求書ではありません',
     },
     {
       name: 'Anthropic receipt',

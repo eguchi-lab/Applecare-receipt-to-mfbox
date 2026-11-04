@@ -17,13 +17,14 @@ from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_tha
 AppleCare はメールにPDF添付がないため、メール本文をPDF化します。
 過去分をまとめて処理したい場合だけ、`newer_than:30d` や `newer_than:180d` に一時変更してください。
 
-### Google Workspace（eguchi-lab.jp）
+### Google Workspace
 
 ```text
-from:payments-noreply@google.com subject:"Google Workspace: eguchi-lab.jp の請求書の用意ができました" newer_than:30d -label:mf-box-sent -label:mf-box-skip
+from:payments-noreply@google.com subject:"Google Workspace:" subject:"の請求書の用意ができました" newer_than:30d -label:mf-box-sent -label:mf-box-skip
 ```
 
-差出人が `payments-noreply@google.com`、件名が `Google Workspace: eguchi-lab.jp の請求書の用意ができました` と完全一致するメールを処理します。
+差出人が `payments-noreply@google.com`、件名が `Google Workspace: <ドメイン> の請求書の用意ができました` 形式のメールを処理します。
+ドメインは固定せず、受信した日本語のGoogle Workspace請求書メールを対象にします。
 月次請求のため通常運用の検索期間は `newer_than:30d` とします。
 添付された請求書PDFを原本証憑としてそのまま保存・転送し、メール本文はPDF化しません。PDF添付がない場合はエラーにし、処理済みラベルを付けません。
 過去分も処理したい場合は、このルールの検索期間を一時的に広げてください。
@@ -66,7 +67,7 @@ PDF添付がある場合は添付PDFをそのまま保存・転送し、PDF添�
 2026-09-16_121530_Apple_AppleCare_9800yen_ab12cd34ef.pdf
 2026-09-19_175602_Anthropic_Receipt_110usd_ab12cd34ef.pdf
 2026-09-19_194625_PayPal_GooglePayments_880yen_ab12cd34ef.pdf
-2026-11-02_194741_GoogleWorkspace_eguchi-lab.jp_Invoice_ab12cd34ef.pdf
+2026-11-02_194741_GoogleWorkspace_Invoice_ab12cd34ef.pdf
 ```
 
 Google Drive は同名ファイルを作成しても上書きしませんが、一覧上で区別しやすいように最初から一意に近い名前にしています。
