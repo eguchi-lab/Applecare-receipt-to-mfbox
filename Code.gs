@@ -47,6 +47,25 @@ const CONFIG = {
       },
       skipReason: 'Pixel Care+キーワードが見つかりません',
     },
+    // Google Workspace は請求書PDFが添付されるため、本文をPDF化せず
+    // 添付PDFを原本証憑として保存・転送する。
+    {
+      name: 'Google Workspace invoice',
+      searchQuery:
+        'from:payments-noreply@google.com subject:"Google Workspace: eguchi-lab.jp の請求書の用意ができました" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'GoogleWorkspace_eguchi-lab.jp_Invoice',
+      amountCurrency: 'yen',
+      source: 'pdfAttachment',
+      matches: function (message) {
+        const from = message.getFrom().trim();
+        const subject = message.getSubject();
+        return (
+          /^(?:payments-noreply@google\.com|[^<>]*<payments-noreply@google\.com>)$/i.test(from) &&
+          subject === 'Google Workspace: eguchi-lab.jp の請求書の用意ができました'
+        );
+      },
+      skipReason: 'eguchi-lab.jp のGoogle Workspace請求書ではありません',
+    },
     {
       name: 'Anthropic receipt',
       searchQuery:
