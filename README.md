@@ -17,6 +17,18 @@ from:no_reply@email.apple.com subject:"Apple からの領収書です" newer_tha
 AppleCare はメールにPDF添付がないため、メール本文をPDF化します。
 過去分をまとめて処理したい場合だけ、`newer_than:30d` や `newer_than:180d` に一時変更してください。
 
+### Apple 請求金額のお知らせ
+
+```text
+from:noreply@email.apple.com subject:"請求金額のお知らせ" newer_than:30d -label:mf-box-sent -label:mf-box-skip
+```
+
+差出人が `noreply@email.apple.com`、件名が `請求金額のお知らせ: <番号>` 形式のメールを処理します（全角コロンにも対応）。
+番号は固定せず、通常運用の検索期間は `newer_than:30d` とします。
+AppleCareの差出人 `no_reply@email.apple.com` とは異なる専用ルールです。
+添付された請求書PDFを原本証憑として保存・転送し、案内だけのメール本文はPDF化しません。PDFが複数あればすべて処理します。
+PDFの内容は変更せず、ファイル名は下記の共通規則で付け直します。PDF添付がない場合はエラーにし、処理済みラベルを付けません。
+
 ### Google Workspace
 
 ```text
@@ -68,6 +80,7 @@ PDF添付がある場合は添付PDFをそのまま保存・転送し、PDF添�
 2026-09-19_175602_Anthropic_Receipt_110usd_ab12cd34ef.pdf
 2026-09-19_194625_PayPal_GooglePayments_880yen_ab12cd34ef.pdf
 2026-11-02_194741_GoogleWorkspace_Invoice_ab12cd34ef.pdf
+2026-11-11_173606_Apple_Invoice_ab12cd34ef.pdf
 ```
 
 Google Drive は同名ファイルを作成しても上書きしませんが、一覧上で区別しやすいように最初から一意に近い名前にしています。

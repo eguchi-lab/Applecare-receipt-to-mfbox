@@ -30,6 +30,25 @@ const CONFIG = {
       },
       skipReason: 'AppleCareキーワードが見つかりません',
     },
+    // Apple の「請求金額のお知らせ」は請求書PDFが添付されるため、
+    // 案内本文をPDF化せず、添付PDFを原本証憑として保存・転送する。
+    {
+      name: 'Apple invoice',
+      searchQuery:
+        'from:noreply@email.apple.com subject:"請求金額のお知らせ" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'Apple_Invoice',
+      amountCurrency: 'yen',
+      source: 'pdfAttachment',
+      matches: function (message) {
+        const from = message.getFrom().trim();
+        const subject = message.getSubject();
+        return (
+          /^(?:noreply@email\.apple\.com|[^<>]*<noreply@email\.apple\.com>)$/i.test(from) &&
+          /^請求金額のお知らせ[:：]\s*\S+\s*$/.test(subject)
+        );
+      },
+      skipReason: 'Apple請求金額のお知らせではありません',
+    },
     // Google Store の Pixel Care+ 定期購入領収書はPDF添付がないため、
     // AppleCare と同じくメール本文を証憑PDFとして保存・転送する。
     {
