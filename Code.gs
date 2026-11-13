@@ -85,6 +85,26 @@ const CONFIG = {
       },
       skipReason: 'Google Workspace請求書ではありません',
     },
+    // OpenAI の経費精算用ChatGPT請求書はPDF添付があるため、
+    // 案内本文をPDF化せず、添付PDFを原本証憑として保存・転送する。
+    // 添付名が「attachment」でも、application/pdf のContent-Typeで検出する。
+    {
+      name: 'OpenAI ChatGPT invoice',
+      searchQuery:
+        'from:noreply@tm.openai.com subject:"経費精算用の ChatGPT の請求書" newer_than:30d -label:mf-box-sent -label:mf-box-skip',
+      fileNamePrefix: 'OpenAI_ChatGPT_Invoice',
+      amountCurrency: 'usd',
+      source: 'pdfAttachment',
+      matches: function (message) {
+        const from = message.getFrom().trim();
+        const subject = message.getSubject();
+        return (
+          /^(?:noreply@tm\.openai\.com|[^<>]*<noreply@tm\.openai\.com>)$/i.test(from) &&
+          subject === '経費精算用の ChatGPT の請求書'
+        );
+      },
+      skipReason: 'OpenAIの経費精算用ChatGPT請求書ではありません',
+    },
     {
       name: 'Anthropic receipt',
       searchQuery:

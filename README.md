@@ -41,6 +41,19 @@ from:payments-noreply@google.com subject:"Google Workspace:" subject:"の請求�
 添付された請求書PDFを原本証憑としてそのまま保存・転送し、メール本文はPDF化しません。PDF添付がない場合はエラーにし、処理済みラベルを付けません。
 過去分も処理したい場合は、このルールの検索期間を一時的に広げてください。
 
+### OpenAI ChatGPT
+
+```text
+from:noreply@tm.openai.com subject:"経費精算用の ChatGPT の請求書" newer_than:30d -label:mf-box-sent -label:mf-box-skip
+```
+
+差出人が `noreply@tm.openai.com`、件名が `経費精算用の ChatGPT の請求書` と一致するメールを処理します。
+通常運用の検索期間は `newer_than:30d` です。
+添付された請求書PDFを原本証憑として保存・転送し、案内だけのメール本文はPDF化しません。
+添付名が `attachment` のように拡張子なしでも、Content-Type が `application/pdf` なら対象です。
+PDFの内容は変更せず、ファイル名には `OpenAI_ChatGPT_Invoice` を使用します。本文に金額がない場合、ファイル名の金額部分は省略します。
+PDFが複数あればすべて処理し、PDF添付がない場合はエラーにして処理済みラベルを付けません。
+
 ### Anthropic
 
 ```text
